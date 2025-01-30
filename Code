@@ -1,0 +1,154 @@
+#Set working directory
+setwd("~/ugs_analysis")
+
+#Install and load packages
+install.packages("skimr")
+install.packages("gtsummary")
+install.packages("rio")
+install.packages("rstatix")
+install.packages("flextables")
+library(rstatix)
+library(readxl)
+library(skimr)
+library(gtsummary)
+library(ggplot2)
+library(broom)
+library(tidyverse)
+library(lmtest)
+
+#Import data
+ugs <- read_excel("~/ugs_analysis/ugs_data.xlsx")
+head(ugs)
+glimpse(ugs)
+
+#Generate summary tables
+ugs %>%
+  select(c(`Sub-county`, Location, `UGS Status`)) %>%
+  tbl_summary(by = `UGS Status`) %>%
+  add_p()
+
+ugs %>%
+  select(c(Age, `Age group`, `UGS Status`, Education, Occupation, `Source of water for domestic use`, `Contact with stagnant water`, `Mode of contact with stagnant water`, `Frequency of exposure to stagnant water`, Haematuria)) %>%
+  tbl_summary(by = `UGS Status`, type = list(`Age group` ~ 'categorical'), statistic = list(all_continuous() ~ "{mean} ({median})", all_categorical() ~ "{n} / {N} ({p}%)")) %>%
+  add_p()
+
+ugs %>%
+  select(c(`Sub-county`, Education, Occupation, `Source of water for domestic use`, `Contact with stagnant water`, `Mode of contact with stagnant water`, `Frequency of exposure to stagnant water`, Haematuria)) %>%
+  tbl_summary(by = `Sub-county`, statistic = list(all_continuous() ~ "{mean} ({median})", all_categorical() ~ "{n} / {N} ({p}%)")) %>%
+  add_p()
+
+ugs %>%
+  select(`Sub-county`, `Mode of contact with stagnant water`) %>%
+  table() %>%
+  fisher.test(workspace = 2e7)
+
+ugs %>%
+  select(`Sub-county`, `Source of water for domestic use`) %>%
+  table() %>%
+  fisher.test(workspace = 2e7)
+
+ugs_data %>%
+  select(c(`Age group`, `Sub-county`, Ward, Nitrites, `Pregnancy test`, Leucocytes, Haematuria, Pus)) %>%
+  tbl_summary(by = `Urogenital schistosomiasis`) %>%
+  add_p()
+
+ugs_data %>%
+  select(c(`Urogenital schistosomiasis`, `Sub-county`, Nitrites, `Average egg count`, `Pregnancy test`, Leucocytes, Haematuria, Pus)) %>%
+  tbl_summary(by = `Sub-county`) %>%
+  add_p()
+ugs_data %>%
+  select(c(`Urogenital schistosomiasis`, Ward, Nitrites, `Pregnancy test`, Leucocytes, Haematuria, Pus)) %>%
+  tbl_summary(by = Ward) %>%
+  add_p()
+
+#Data viz
+ugs_data %>%
+  filter(`Urogenital schistosomiasis` %in% c("Negative", "Positive")) %>%
+  ggplot(aes(`Sub-county`, color = `Urogenital schistosomiasis`, fill = `Urogenital schistosomiasis`)) +
+  geom_bar(color = "black") +
+  scale_fill_manual(values = c("Negative" = "deepskyblue", "Positive" = "deepskyblue4")) +
+  theme_bw() +
+  labs(title = "Prevalence of Urogential Schistosomiasis by Sub-county")
+ugs_data %>%
+  filter(`Urogenital schistosomiasis` %in% c("Negative", "Positive")) %>%
+  ggplot(aes(Ward, fill = `Urogenital schistosomiasis`)) +
+  geom_bar(color = "black", position = "dodge", show.legend = TRUE) +  # Dodged bars with black outline
+  scale_fill_manual(values = c("Negative" = "deepskyblue", "Positive" = "deepskyblue4"))
+  theme_bw() +
+  labs(title = "Prevalence of Urogenital Schistosomiasis by Ward")
+  ugs_data %>%
+    filter(`Urogenital schistosomiasis` %in% c("Negative", "Positive")) %>%
+    ggplot(aes(Ward, fill = factor(`Urogenital schistosomiasis`))) +
+    geom_bar(color = "black", position = "dodge", show.legend = TRUE) +
+    scale_fill_manual(values = c("Negative" = "deepskyblue", "Positive" = "deepskyblue4")) +
+    theme_bw() +
+    labs(title = "Prevalence of Urogenital Schistosomiasis by Ward")
+
+ugs_data %>%
+  na.rm = TRUE %>%
+  filter(`Urogenital schistosomiasis` %in% c("Negative", "Positive")) %>%
+  ggplot(aes(x = Age, y = `Average egg count`)) +
+  geom_boxplot() +
+  scale_fill_manual(values = c("Negative" = "deepskyblue", "Positive" = "deepskyblue4")) +
+  theme_bw()
+
+#Binomial logistic regression
+#Recode data 
+ugs <- ugs %>%
+  mutate(`Mode of contact with stagnant water` = recode(`Mode of contact with stagnant water`, "None" = 1, "When bathing" = 2, "When walking" = 3, "When washing/fetching water" = 4, "When washing/fetching water and when bathing" = 5, "When washing/fetching water and when walking" = 6, "When washing/fetching water and when bathing and when walking" = 7))
+
+ugs <- ugs %>%
+  mutate(`Age group` = recode(`Age group`, "Younger than 35" = 1, "35 years and older" = 2))
+ugs$`Age group`
+
+ugs <- ugs %>%
+  mutate(`Source of water for domestic use` = recode(`Source of water for domestic use`, "Piped water" = 1, "Piped water and pond" = 2, "Piped water and river" = 3, "Piped water and well" = 4, "Pond" = 5, "River" = 6, "River and pond" = 7, "Well" = 8, "Well and river" = 9))
+
+ugs <- ugs %>%
+  mutate(Occupation = recode(Occupation, "Casual labourer" = 1, "Business" = 2, "Farmer" = 3, "House wife" = 4))
+
+ugs <- ugs %>%
+  mutate(`Contact with stagnant water` = recode(`Contact with stagnant water`, "Yes" = 1, "No" = 2))
+
+ugs <- ugs %>%
+  mutate(Education = recode(Education, "Primary" = 1, "Secondary" = 2))
+
+ugs <- ugs %>%
+  mutate(`UGS Status` = recode(`UGS Status`, "1" = 0, "2" = 1))
+ugs$`UGS Status`
+ugs <- ugs %>%
+  mutate(`Frequency of exposure to stagnant water` = recode(`Frequency of exposure to stagnant water`, "None" = 1, "Seasonally" = 2, "Less than twice a week" = 3, "More than twice a week" = 4))
+
+ugs <- ugs %>%
+  mutate(`Sub-county` = recode(`Sub-county`, "Rabai" = 1, "Magarini" = 2))
+
+ugs <- ugs %>%
+  mutate(Haematuria = recode(Haematuria, "Negative" = 1, "Large" = 2))
+#Convert relevant columns to character type
+ugs <- ugs %>%
+  mutate(across(.cols = any_of(c(explanatory_vars, "UGS Status")), .fns = as.character))
+glimpse(ugs)
+colnames(ugs)
+
+#Fit regression model
+ugs_model <- glm(`UGS Status` ~ Education + Occupation + `Sub-county` + Village + Haematuria + `Source of water for domestic use` + `Contact with stagnant water` + `Frequency of exposure to stagnant water` + `Age group`, data = ugs, family = binomial)
+summary(ugs_model)
+
+#Extract and transform model results
+model_tidy <- tidy(ugs_model, conf.int = TRUE) %>%
+  mutate(odds_ratio = exp(estimate),
+         conf.low = exp(conf.low),
+         conf.high = exp(conf.high),
+         significant = ifelse(conf.low > 1 | conf.high < 1, "significant", "not significant"))
+
+#Plot results
+ggplot(model_tidy, aes(x = term, y = odds_ratio, color = significant)) +
+  geom_point(size = 3) +
+  geom_errorbar(aes(ymin = conf.low, ymax = conf.high), width = 0.2) +
+  geom_vline(xintercept = 1, linetype = "dashed", color = "grey") +
+  coord_flip() +
+  xlab("Variables") +
+  ylab("Odds Ratio") +
+  scale_color_manual(values = c("significant" = "red", "not significant" = "blue")) +
+  theme_minimal() +
+  theme(legend.position = "none")
